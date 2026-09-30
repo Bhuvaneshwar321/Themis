@@ -1,0 +1,404 @@
+THEMIS - PROJECT PLAN (SINGLE SOURCE OF TRUTH)
+Created: 2026-09-30
+Owner: Bhuvaneshwar (second-year B.Tech CSE student)
+
+=====================================================================
+0. HOW TO USE THIS FILE  (AI ASSISTANTS: READ THIS FIRST)
+=====================================================================
+- This file describes the whole project, the decisions already made, and
+  the ordered steps to finish it.
+- If you are an AI assistant in a new chat: read the whole file, then read
+  Section 12 (PROGRESS LOG). Tell the user which step they are on and
+  exactly what to do next. If the log is empty or unclear, ask ONE
+  question: "Which step did you last finish, and what does `git log
+  --oneline` show?"
+- Do not skip steps. Do not add features that are not in Section 4 unless
+  the user agrees. Never invent legal facts (see Section 5).
+- Keep answers short and practical. The user is a student building a
+  resume + GitHub portfolio project with AI-agent help (Google
+  Antigravity). The user must be able to explain every part in an
+  interview, so explain decisions briefly.
+- When a step is finished, remind the user to tick it in Section 12.
+
+=====================================================================
+1. THE PROJECT IN ONE PARAGRAPH
+=====================================================================
+THEMIS ("Justice in Your Language") is an open-source legal-INFORMATION
+assistant for people in India. A user describes a stressful legal
+situation (for example a police stop, unpaid wages, illegal eviction) in
+English, Tamil or Hindi. THEMIS identifies the situation, retrieves the
+relevant sections of Indian law from an official-source database, and
+returns a short, structured "first steps" answer: what your rights are,
+what to do in the next hour and next days, which documents you may need,
+and where to get free human help. Every legal claim must be traceable to
+a retrieved statute section, and the system refuses to answer when it
+cannot ground the answer. It is information, not legal advice.
+
+=====================================================================
+2. GOALS AND NON-GOALS
+=====================================================================
+GOALS
+- A polished, working, deployed project for the resume and GitHub.
+- Demonstrates: RAG done properly, hallucination control, evaluation,
+  multilingual UX, security/privacy thinking, clean engineering (tests,
+  CI, docs).
+- Actually useful to ordinary people, including low-bandwidth and
+  first-time smartphone users (mobile-first, plain language).
+
+NON-GOALS (for now)
+- No monetization, no pitching to any organization or individual (the
+  owner may revisit this later).
+- Not a replacement for a lawyer. Not for evading lawful process.
+- No automation of government portals (dropped: fragile, liability).
+- No user accounts, payments, or Redis.
+- No voice in v1 (stretch goal after v1.0.0).
+
+=====================================================================
+3. BACKGROUND: WHAT HAS BEEN DONE SO FAR  (as of 2026-09-30)
+=====================================================================
+NOTHING HAS BEEN BUILT IN THE NEW PROJECT YET. Only planning is done.
+
+Earlier attempt (old code, being abandoned):
+- Two older doc files (PROJECT_OVERVIEW.md, THEMIS_PROJECT_SUMMARY.md)
+  described the same project. Stack was React+Vite frontend and FastAPI
+  backend with an SSE streaming endpoint.
+- Findings from reviewing that code: the backend returned MOCK data
+  (no real retrieval, no LLM calls, API keys never used); the frontend
+  ignored the streamed answer and always showed one hardcoded answer;
+  errors were silently swallowed; requirements.txt was very heavy (torch,
+  whisper, playwright, langchain); the hardcoded legal text contained
+  unverified claims and a fake 0.94 confidence score.
+- DECISION: rebuild from scratch. Reuse ideas only (optionally the dark
+  gold visual theme). Rotate/revoke any API key that was ever used in old
+  code.
+
+Research done (2026-09-30): existing solutions in India
+- Tele-Law (govt): free pre-litigation advice from panel lawyers via
+  helpline 14454, app, and Common Service Centres; Nyaya Bandhu pro bono
+  advocates.
+- Nyaya Setu (govt): voice-first multilingual legal assistant using
+  Bhashini. Biggest competitor.
+- Jugalbandi / OpenNyAI: open-source WhatsApp/web chatbot framework with
+  Bhashini voice; Apache-2.0.
+- Startups/others: NyayGuru, Kanoon AI, LexBharat, NyayAI, Bharat.Law.
+- CONCLUSION: a generic "ask any legal question in any dialect" chatbot
+  is NOT unique. THEMIS competes on depth and trust instead.
+
+THEMIS DIFFERENTIATORS
+1. Situation-first, human-VERIFIED playbooks ("what to do in the next
+   hour") for a small set of scenarios, with RAG only for the long tail.
+2. Citation-verified RAG: a code-level verifier rejects any citation not
+   backed by a retrieved chunk; results are proven with a published eval
+   (recall, citation validity, refusal accuracy, per language).
+3. Companion to Tele-Law / DLSA, not a replacement: a district-agnostic
+   help directory plus a short "case summary" the user can read out or
+   show when calling 14454 or visiting legal aid.
+STRETCH (after v1.0.0): document drafter (complaint letters, RTI),
+Telegram/WhatsApp channel with voice notes, offline-capable PWA
+playbooks, more languages and scenarios.
+
+Other decisions made:
+- Built with Google Antigravity using prompt-driven agent automation.
+- One database: PostgreSQL 16 + pgvector (no Qdrant, no Redis).
+- One primary LLM + one fallback behind a thin interface (no 3-vendor
+  tiering).
+- Portfolio project, not commercial, for now.
+
+=====================================================================
+4. SCOPE OF v1.0.0
+=====================================================================
+SCENARIOS (defaults; the user may change them - see Section 13)
+ S1. Police stop / driving-licence or vehicle seizure
+ S2. Refusal to register an FIR
+ S3. Unpaid wages
+ S4. Illegal eviction / landlord-tenant dispute (state-specific law;
+     pick ONE state first - suggested: Tamil Nadu because Tamil is a
+     target language; confirm with the user)
+ S5. Online / cyber fraud
+
+LANGUAGES: English, Tamil, Hindi (UI and answers). Mixed-script input
+(Tanglish/Hinglish) is best-effort.
+
+LAWS TO INGEST (verify current versions from official sources):
+ Bharatiya Nagarik Suraksha Sanhita 2023 (BNSS), Bharatiya Nyaya Sanhita
+ 2023 (BNS), Motor Vehicles Act 1988 as amended, Central Motor Vehicles
+ Rules 1989, the wages law currently in force (check whether the Code on
+ Wages 2019 or the older Payment of Wages Act 1936 applies), the chosen
+ state's tenancy law, Information Technology Act 2000. Add others only
+ if a playbook needs them.
+
+=====================================================================
+5. NON-NEGOTIABLE PRINCIPLES
+=====================================================================
+1. GROUNDED: every legal claim in an answer cites a retrieved chunk ID.
+   A verifier in code enforces it. No citation = claim is dropped.
+2. REFUSE WHEN UNSURE: if retrieval confidence is low or the topic is out
+   of scope, say so and point to Tele-Law (14454) / DLSA.
+3. NO FAKE CONFIDENCE: never show an LLM self-rated percentage. Show
+   "sources found: N" and verifier status instead.
+4. DATA, NOT INSTRUCTIONS: user text and retrieved text are untrusted
+   data; they can never change system behavior (prompt-injection safety).
+5. LAWFUL OPTIONS ONLY: no help evading lawful process, destroying
+   evidence, intimidating anyone, or fabricating documents.
+6. EMERGENCY FIRST: if life/safety is at risk, show helplines before
+   anything else.
+7. PRIVACY: no accounts; case text not stored by default; logs redact
+   user text; clear-chat button.
+8. VERIFIED CONTENT: playbooks carry a verification status (draft /
+   self_verified / reviewed). Never present draft content as final.
+9. HELPLINES AND URLS live in ONE data file with source URL and
+   last-verified date. Verify every number/URL before release. (Numbers
+   the project expects to include, all to be verified: 112, 1930, 181,
+   14454, 15100, 1915.)
+10. HONEST LIMITS: the UI states what is and is not covered.
+11. REPRODUCIBLE: pinned dependencies, one-command setup, tests, CI.
+12. EXPLAINABLE: every major choice is logged in docs/decisions.md.
+13. SECRETS: only in a gitignored .env; .env.example has names only.
+
+=====================================================================
+6. ARCHITECTURE AND STACK
+=====================================================================
+ [React UI] --HTTPS/SSE--> [FastAPI]
+     FastAPI pipeline per question:
+       1. safety + emergency triage
+       2. scenario match (playbook) : keyword + embedding (+LLM fallback)
+       3. retrieval : hybrid (Postgres full-text + pgvector) merged with
+          Reciprocal Rank Fusion, optional reranker
+       4. generation : LLM returns JSON matching the answer schema
+       5. citation verifier + confidence gate (refuse if it fails)
+       6. stream status events, then the final answer
+     Storage: PostgreSQL 16 + pgvector (legal_chunks table).
+
+STACK (defaults; agent may propose changes via docs/decisions.md)
+- Backend: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (async) or
+  psycopg, pytest, ruff.
+- Embeddings: BAAI bge-m3 via sentence-transformers (multilingual; local;
+  first run downloads the model). Alternative: a hosted embedding API.
+- LLM: Gemini API (google-genai SDK) primary; Groq-hosted Llama as
+  fallback; both behind an LLMClient interface with JSON-schema output.
+- Frontend: React + Vite + TypeScript + Tailwind, mobile-first, i18n via
+  react-i18next, vitest.
+- DevOps: Docker Compose (db), GitHub Actions CI, gitleaks secret scan.
+- Deploy (check current free-tier limits): Vercel (frontend), Render /
+  Railway / Fly (backend), Neon or Supabase (Postgres with pgvector).
+
+=====================================================================
+7. DATA FORMATS
+=====================================================================
+7.1 LEGAL CHUNK (table legal_chunks)
+  id (stable slug, e.g. "bnss-2023-s173"), act_name, act_year, chapter,
+  section_number, section_title, part_index, text, language ("en"),
+  source_url, retrieved_on, amended_through, status (in_force / omitted /
+  repealed), embedding (vector), tsv (full-text).
+  Rules: one chunk per section; provisos/explanations stay with their
+  section; very long sections split with part_index; keep omitted/
+  repealed sections flagged, not deleted.
+
+7.2 PLAYBOOK (data/playbooks/<id>.yaml)
+  id; titles{en,ta,hi}; triggers (phrases in all 3 languages);
+  situation; immediate_steps[]; rights[{text, chunk_ids[]}];
+  do_not_do[]; documents[]; time_limits[]; escalation[]; help[] (ids from
+  the helplines file); verification{status: draft|self_verified|reviewed,
+  verified_by, date, sources[]}.
+
+7.3 ANSWER JSON (API response and LLM output schema)
+  language; scenario_id|null; emergency (bool); summary; rights[{text,
+  citation_ids[]}]; action_steps[{order, text, urgency, citation_ids[]}];
+  documents[]; where_to_get_help[]; warnings[]; citations[{chunk_id, act,
+  section, title, source_url, excerpt}]; verifier{passed, dropped_claims};
+  retrieval{num_sources, top_score}; refused (bool); disclaimer.
+  There is NO "confidence percentage" field.
+
+7.4 EVAL ITEM (eval/dataset.jsonl)
+  {id, lang, scenario, question, expected_sections[], must_refuse(bool),
+   notes}
+
+=====================================================================
+8. REPOSITORY LAYOUT
+=====================================================================
+ themis/
+   THEMIS_PLAN.txt        (this file)
+   AGENTS.md              rules for all AI agents
+   SPEC.md                goals, scenarios, metrics
+   README.md
+   docs/ decisions.md, api.md, architecture.md
+   backend/ app/ (api, core, retrieval, llm, prompts, safety, playbooks)
+            ingest/  evals/  tests/
+   frontend/ src/ (components, pages, i18n, api)
+   data/ raw/ (source files)  chunks/  playbooks/  helplines.yaml
+         sources.json (URL + retrieval date for every source)
+   .agents/skills/  (folder name may differ by Antigravity version)
+   docker-compose.yml  .env.example  .gitignore  .github/workflows/
+
+=====================================================================
+9. WORKING WITH GOOGLE ANTIGRAVITY
+=====================================================================
+- Use Planning mode for every step; read the plan before approving.
+- Terminal policy: "Request review" + allow list (ls, git status,
+  pytest, npm test, ruff). Review policy: agent asks at significant steps.
+- Parallel agents: at most 2-3, on disjoint folders. The UI agent may
+  start only after docs/api.md (the API contract) exists (after Step 5).
+- Use the strongest available model for architecture/planning steps and a
+  faster one for boilerplate.
+- Rules/skills: AGENTS.md at the repo root; skills as folders containing
+  SKILL.md. Workflows are being deprecated in favor of Skills (Google
+  docs, deadline Nov 1 2026), so use Skills.
+- Never paste real API keys into prompts. Commit small and often.
+- After each step: run tests, read the diff, run the app yourself, then
+  tick Section 12.
+
+=====================================================================
+10. STEPS  (do in order; each has an acceptance check)
+=====================================================================
+STEP 0 - PREREQUISITES (human, about 1 hour)
+  - Install: Git, Python 3.12, Node LTS, Docker Desktop, Antigravity.
+  - Create an empty GitHub repo (public), clone it locally, put this file
+    in the repo root, open the folder in Antigravity.
+  - Create a Google AI Studio API key (and optionally a Groq key). Store
+    only in a local .env. Revoke old keys from the previous code.
+  - Set Antigravity terminal policy = Request review + allow list.
+  ACCEPT: `git --version`, `python --version`, `node --version`,
+  `docker --version` all work; first commit pushed.
+
+STEP 1 - BOOTSTRAP THE PROJECT BRAIN (agent; no app code)
+  Create AGENTS.md, SPEC.md, docs/decisions.md, 3 skills (rag-ingest,
+  playbook-author, eval-runner), .gitignore, .env.example, README stub.
+  ACCEPT: files exist, are concise (AGENTS.md under ~120 lines), match
+  this plan; you have read all of them.
+
+STEP 2 - SCAFFOLD (M0)
+  Backend app with /health, settings, pytest; Vite React TS Tailwind page
+  that calls /health; docker-compose with Postgres 16 + pgvector;
+  Makefile/scripts; GitHub Actions (ruff+pytest, lint+build); README quick
+  start.
+  ACCEPT: fresh clone -> `docker compose up -d db`, backend and frontend
+  start, page shows "backend: ok", CI is green.
+
+STEP 3 - INGEST LAW TEXT (M1)
+  Download official texts (India Code / official gazette PDFs) into
+  data/raw with URL + date in data/sources.json (respect site terms; if
+  scraping is blocked, download manually). Write a section-level parser,
+  create legal_chunks (Section 7.1), idempotent command
+  `python -m ingest.run`. Unit tests on small fixtures.
+  ACCEPT: chunk counts match each act's section count (within noted
+  exceptions); no empty text or duplicate IDs; YOU spot-check 20 random
+  sections against the official source and record results in
+  docs/decisions.md.
+
+STEP 4 - RETRIEVAL (M2)
+  Embed chunks (bge-m3) into pgvector; add full-text search; hybrid merge
+  with RRF; exact section lookup ("section 173"); optional reranker;
+  CLI: `python -m app.cli search "<query>"`. Create 15+ seed test
+  queries (English, Tamil, Hindi) with expected sections.
+  ACCEPT: recall@5 on the seed queries is measured and recorded (target
+  >= 80%); tests pass.
+
+STEP 5 - ANSWER ENGINE + CITATION VERIFIER (M3)
+  LLMClient interface (Gemini primary, Groq fallback), prompts in
+  backend/app/prompts/, JSON-schema output (Section 7.3), citation
+  verifier, retrieval confidence gate + refusal, emergency triage,
+  language handling (answer in the user's language), POST /api/ask with
+  SSE (status events, then final answer). Write docs/api.md.
+  ACCEPT: tests prove (a) the verifier rejects a fake citation,
+  (b) an out-of-scope question is refused, (c) schema validation works,
+  (d) prompt-injection text inside a question does not change behavior.
+
+STEP 6 - PLAYBOOKS (M4)  (human-in-the-loop)
+  Agent drafts the 5 playbooks (Section 7.2) from ingested chunks and
+  official sources. YOU verify every claim against the official text and
+  set the verification status. Best: get a law student / legal-aid clinic
+  / DLSA volunteer to review and record their name and date (with their
+  permission). Add loader + scenario matcher; answers use the playbook as
+  grounded context first, then RAG.
+  ACCEPT: every playbook citation resolves to a real chunk; each status
+  is at least self_verified; helplines file verified with dates.
+
+STEP 7 - CHAT UI (M5)
+  Mobile-first chat; streaming status; answer card (summary, rights,
+  steps, documents, help); sources drawer (tap a citation -> statute text
+  + official link); language switcher (EN/TA/HI) with i18n; scenario
+  quick-start buttons; disclaimer banner; emergency block first; empty/
+  loading/error states; accessibility (contrast, keyboard, text size);
+  "Copy case summary" for a Tele-Law/DLSA call; session-only storage and
+  a clear-chat button.
+  ACCEPT: works at 360px width, all three languages render correctly,
+  Lighthouse accessibility >= 90, component tests pass.
+
+STEP 8 - EVALUATION (M6)
+  Build eval/dataset.jsonl (60-100 items, all scenarios and languages,
+  at least 10 out-of-scope must_refuse items). Runner outputs a markdown +
+  JSON report: recall@k, citation validity (must be 100%), citation
+  correctness, refusal accuracy, per-language results, latency p50/p95.
+  Manually review 20 answers for faithfulness. CI runs a cheap
+  retrieval-only subset.
+  ACCEPT: results table with REAL numbers is in the README.
+
+STEP 9 - HARDENING (M7)
+  Rate limiting, input length limits, timeouts, CORS restricted, log
+  redaction, gitleaks in CI, dependency audit, safety tests (evasion
+  requests refused), privacy notice page, graceful LLM-failure fallback.
+  ACCEPT: safety tests pass; no secrets in git history; app degrades
+  gracefully when the LLM key is missing or the API is down.
+
+STEP 10 - DEPLOY AND POLISH (M8)
+  Deploy frontend, backend, database; run ingestion on the production DB;
+  smoke test. README: problem statement, demo GIF, Mermaid architecture
+  diagram, quick start, eval table, limitations, safety, sources/credits,
+  license (Apache-2.0 or MIT). Repo description + topics, release
+  v1.0.0.
+  ACCEPT: a stranger can open the live link, ask a question, and see a
+  cited answer; README quick start works on a clean machine.
+
+STEP 11 - STRETCH (only after v1.0.0; one at a time)
+  a) Document drafter (complaint letters, RTI) with verified templates
+  b) Telegram/WhatsApp channel with voice notes (Whisper via hosted API or
+     Bhashini ASR)
+  c) Offline-capable PWA for playbooks
+  d) More languages, scenarios, states
+
+=====================================================================
+11. RESUME AND GITHUB DELIVERABLES
+=====================================================================
+- README with demo GIF, architecture diagram, quick start, eval table.
+- CI badges, tests, license, clean commit history.
+- docs/decisions.md and AGENTS.md visible (shows disciplined AI-assisted
+  workflow; disclose that AI agents were used).
+- Resume bullet template (FILL WITH REAL NUMBERS ONLY):
+  "Built THEMIS, an open-source multilingual (EN/TA/HI) legal-information
+  assistant for Indian citizens: hybrid RAG over BNS/BNSS/MVA with a
+  citation verifier that rejects unsupported claims; X% recall@5 and 100%
+  citation validity on a Y-question eval set; deployed with CI/CD."
+- Be ready to explain: why hybrid search, why a verifier, why refusals,
+  how the eval works, what the limitations are.
+
+=====================================================================
+12. PROGRESS LOG  (the user updates this; AIs read it)
+=====================================================================
+Last updated: 2026-09-30
+CURRENT STEP: Step 0 (nothing started)
+
+[ ] Step 0  Prerequisites
+[ ] Step 1  Bootstrap project brain
+[ ] Step 2  Scaffold
+[ ] Step 3  Ingest law text
+[ ] Step 4  Retrieval
+[ ] Step 5  Answer engine + citation verifier
+[ ] Step 6  Playbooks (human verified)
+[ ] Step 7  Chat UI
+[ ] Step 8  Evaluation
+[ ] Step 9  Hardening
+[ ] Step 10 Deploy and polish
+[ ] Step 11 Stretch (optional)
+
+Notes / blockers / verification results:
+-
+
+=====================================================================
+13. OPEN DECISIONS (confirm with the user before Step 1 if possible)
+=====================================================================
+- Confirm the 5 scenarios in Section 4.
+- Which state for the tenancy scenario (suggested: Tamil Nadu).
+- Embeddings: local bge-m3 (default) or a hosted embedding API.
+- Repo name and license (Apache-2.0 or MIT).
+- Deploy targets (defaults in Section 6).
+- Whether a law student / legal-aid volunteer can review the playbooks.
