@@ -1,10 +1,5 @@
-import os
-import sys
-
-# Add backend to sys.path so Python can find the app package
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
 from fastapi.testclient import TestClient
+
 from app.main import app
 
 client = TestClient(app)
