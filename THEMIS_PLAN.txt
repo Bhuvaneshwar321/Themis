@@ -374,12 +374,12 @@ STEP 11 - STRETCH (only after v1.0.0; one at a time)
 =====================================================================
 12. PROGRESS LOG  (the user updates this; AIs read it)
 =====================================================================
-Last updated: 2026-09-30
-CURRENT STEP: Step 0 (nothing started)
+Last updated: 2026-10-01
+CURRENT STEP: Step 2 (finished)
 
 [ ] Step 0  Prerequisites
-[ ] Step 1  Bootstrap project brain
-[ ] Step 2  Scaffold
+[x] Step 1  Bootstrap project brain
+[x] Step 2  Scaffold
 [ ] Step 3  Ingest law text
 [ ] Step 4  Retrieval
 [ ] Step 5  Answer engine + citation verifier
